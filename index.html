@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CycleFlow — 月經週期紀錄與預測</title>
+  <meta name="description" content="CycleFlow 是一款簡約、現代的月經週期紀錄與預測工具，所有資料皆儲存於您的裝置中，完全保護隱私。">
+  <link rel="stylesheet" href="style.css?v=2">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌸</text></svg>">
+</head>
+<body>
+
+<div class="app-container">
+
+  <!-- Header -->
+  <header class="app-header fade-in">
+    <div class="app-header__logo">
+      <div class="app-header__icon">🌸</div>
+      <h1 class="app-header__title">CycleFlow</h1>
+    </div>
+    <p class="app-header__subtitle">月經週期紀錄與智慧預測</p>
+  </header>
+
+  <!-- Today Badge -->
+  <div style="text-align:center" class="fade-in">
+    <div class="today-badge" id="todayBadge">
+      <span>📅</span>
+      <span id="todayBadgeText">載入中...</span>
+    </div>
+  </div>
+
+  <!-- Summary Section -->
+  <section class="card fade-in" id="summaryCard">
+    <div class="card__title">
+      <span class="card__title-icon">📊</span>
+      數據摘要
+    </div>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="summary-item__value" id="avgCycleLength">--</div>
+        <div class="summary-item__label">平均週期<br>(天)</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-item__value" id="avgDuration">--</div>
+        <div class="summary-item__label">平均持續<br>(天)</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-item__value" id="daysUntilNext">--</div>
+        <div class="summary-item__label">距下次<br>(天)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Calendar Section -->
+  <section class="card fade-in" id="calendarCard">
+    <div class="card__title">
+      <span class="card__title-icon">🗓️</span>
+      互動行事曆
+    </div>
+    <div class="calendar-nav">
+      <button class="calendar-nav__btn" id="prevMonth" aria-label="上個月">‹</button>
+      <div class="calendar-nav__month" id="currentMonth"></div>
+      <button class="calendar-nav__btn" id="nextMonth" aria-label="下個月">›</button>
+    </div>
+    <div class="calendar-weekdays">
+      <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+    </div>
+    <div class="calendar-days" id="calendarDays"></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot legend-dot--period"></div>經期</div>
+      <div class="legend-item"><div class="legend-dot legend-dot--predicted"></div>預測經期</div>
+      <div class="legend-item"><div class="legend-dot legend-dot--ovulation"></div>排卵日</div>
+      <div class="legend-item"><div class="legend-dot legend-dot--fertile"></div>易孕期</div>
+    </div>
+  </section>
+
+  <!-- History Section -->
+  <section class="card fade-in" id="historyCard">
+    <div class="card__title">
+      <span class="card__title-icon">📋</span>
+      經期紀錄
+    </div>
+    <ul class="history-list" id="historyList">
+      <li class="history-empty">尚無紀錄，點擊行事曆日期來新增</li>
+    </ul>
+  </section>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    CycleFlow &copy; 2026 — 所有資料僅儲存於您的裝置
+  </footer>
+
+</div>
+
+<!-- Duration Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal__title" id="modalTitle">標記經期開始</div>
+    <div class="modal__date" id="modalDate"></div>
+    <div class="modal__label">持續天數</div>
+    <div class="duration-selector">
+      <button class="duration-selector__btn" id="durationMinus">−</button>
+      <div class="duration-selector__value" id="durationValue">5</div>
+      <button class="duration-selector__btn" id="durationPlus">+</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn--secondary" id="modalCancel">取消</button>
+      <button class="btn btn--danger" id="modalDelete" style="display:none">刪除</button>
+      <button class="btn btn--primary" id="modalSave">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cycle Anomaly Warning Alert -->
+<div class="alert-overlay" id="alertOverlay">
+  <div class="alert-box" id="alertBox">
+    <div class="alert-box__icon" id="alertIcon">⚠️</div>
+    <div class="alert-box__title" id="alertTitle">週期提醒</div>
+    <div class="alert-box__interval" id="alertInterval"></div>
+    <div class="alert-box__message" id="alertMessage"></div>
+    <button class="btn btn--primary" id="alertDismiss">我知道了</button>
+  </div>
+</div>
+
+<script src="app.js?v=2"></script>
+</body>
+</html>
