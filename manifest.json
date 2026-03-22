@@ -1,0 +1,17 @@
+{
+  "name": "CycleFlow",
+  "short_name": "CycleFlow",
+  "description": "月經週期紀錄與預測工具",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fafafa",
+  "theme_color": "#FFB6C1",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

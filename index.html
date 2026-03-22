@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>CycleFlow — 月經週期紀錄與預測</title>
   <meta name="description" content="CycleFlow 是一款簡約、現代的月經週期紀錄與預測工具，所有資料皆儲存於您的裝置中，完全保護隱私。">
+  
+  <!-- Web App Manifest (提供手機主畫面安裝) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#FFB6C1">
+  <!-- iOS 蘋果設備的圖標 -->
+  <link rel="apple-touch-icon" href="icon.svg">
+  
   <link rel="stylesheet" href="style.css?v=2">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <!-- Supabase CDN -->
@@ -17,8 +24,9 @@
   <!-- Auth Section -->
   <section class="auth-screen fade-in" id="authScreen">
     <div class="card" style="margin-top: 2rem;">
-      <div class="card__title" style="justify-content:center;font-size:1.5rem;margin-bottom:1rem;">
-        <span style="margin-right:0.5rem">🌸</span> CycleFlow
+      <div class="card__title" style="justify-content:center;font-size:1.5rem;margin-bottom:1rem;display:flex;align-items:center;">
+        <img src="icon.svg" alt="App Icon" width="32" height="32" style="margin-right:0.5rem; border-radius:50%; box-shadow:0 2px 8px rgba(255, 182, 193, 0.4);">
+        CycleFlow
       </div>
       <p style="text-align:center;margin-bottom:1.5rem;color:var(--text-light);">登入或註冊以啟用雲端同步與伴侶共享功能</p>
       <form id="authForm" class="auth-form" onsubmit="return false;">
@@ -39,7 +47,7 @@
   <!-- Header -->
   <header class="app-header fade-in">
     <div class="app-header__logo">
-      <div class="app-header__icon">🌸</div>
+      <img src="icon.svg" alt="App Icon" class="app-header__icon" style="background:transparent; padding:0;">
       <h1 class="app-header__title">CycleFlow</h1>
     </div>
     <p class="app-header__subtitle">月經週期紀錄與智慧預測</p>
