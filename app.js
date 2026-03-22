@@ -4,6 +4,15 @@
 ;(function () {
   'use strict';
 
+  // ---- Supabase Init ----
+  const SUPABASE_URL = 'https://grtrfpiwvasncmxlpzyd.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_VM2XAuVUBpEgkdDNv0BnHQ_DmigRWSo';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // ---- Auth & Sync State ----
+  let currentUser = null;
+  let partnerModeId = null;
+
   // ---- Constants ----
   const STORAGE_KEY = 'cycleflow_periods';
   const DEFAULT_CYCLE = 28;
@@ -40,6 +49,15 @@
   const alertInterval = $('#alertInterval');
   const alertMessage = $('#alertMessage');
   const alertDismiss = $('#alertDismiss');
+
+  // ---- Auth Elements ----
+  const authEmail = $('#authEmail');
+  const authPassword = $('#authPassword');
+  const authError = $('#authError');
+  const btnLogin = $('#btnLogin');
+  const btnRegister = $('#btnRegister');
+  const btnLogout = $('#btnLogout');
+  const btnPartnerMode = $('#btnPartnerMode');
 
   // ---- State ----
   let viewYear, viewMonth; // currently displayed calendar month
@@ -79,23 +97,65 @@
     return dateStr(new Date());
   }
 
-  // ---- Data Layer (LocalStorage) ----
+  // ---- Data Layer (LocalStorage & Sync) ----
+  function getStorageKey() {
+    return currentUser ? `cycleflow_periods_${currentUser.id}` : STORAGE_KEY;
+  }
+
   function load() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(getStorageKey());
       return raw ? JSON.parse(raw) : [];
     } catch { return []; }
   }
 
   function save(periods) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(periods));
+    if (partnerModeId) return; // Do not save partner data locally
+    localStorage.setItem(getStorageKey(), JSON.stringify(periods));
   }
 
   function getPeriods() {
-    const periods = load();
-    // Sort by start date ascending
+    if (partnerModeId) {
+      const p = window._partnerPeriods || [];
+      return p.slice().sort((a, b) => a.start.localeCompare(b.start));
+    }
+    const periods = load().filter(p => !p.deleted);
     periods.sort((a, b) => a.start.localeCompare(b.start));
     return periods;
+  }
+
+  async function syncPending() {
+    if (!navigator.onLine || !currentUser) return;
+    const local = load();
+    for (let p of local) {
+      if (p.deleted) {
+        if (p.id) await supabase.from('cycles').delete().eq('id', p.id);
+      } else if (p.pending) {
+        if (p.id) {
+          await supabase.from('cycles').update({ duration: p.duration }).eq('id', p.id);
+        } else {
+          await supabase.from('cycles').insert({ user_id: currentUser.id, start_date: p.start, duration: p.duration });
+        }
+      }
+    }
+  }
+
+  async function syncFromCloud() {
+    if (!navigator.onLine || !currentUser) return;
+    if (!partnerModeId) {
+      await syncPending();
+    }
+    const targetUserId = partnerModeId || currentUser.id;
+    const { data, error } = await supabase.from('cycles').select('id, start_date, duration').eq('user_id', targetUserId);
+    if (!error) {
+      const mapped = data.map(c => ({ id: c.id, start: c.start_date, duration: c.duration }));
+      if (partnerModeId) {
+        window._partnerPeriods = mapped;
+      } else {
+        save(mapped); // Overwrites local with truth, clearing pending/deleted flags safely
+      }
+      refresh();
+    }
   }
 
   // ---- Prediction Engine ----
@@ -415,28 +475,41 @@
   }
 
   function savePeriod() {
+    if (partnerModeId) {
+      alert('伴侶模式下無法編輯紀錄');
+      closeModal();
+      return;
+    }
     if (!selectedDate) return;
-    const periods = getPeriods();
+    
+    const periods = load(); // Load raw to modify true state
     const isNew = editingIndex < 0;
-    const savedDate = selectedDate; // capture before closeModal() clears it
+    const savedDate = selectedDate;
 
     if (editingIndex >= 0) {
-      // Update existing
-      periods[editingIndex].duration = currentDuration;
+      const sortedActive = getPeriods();
+      const actualStart = sortedActive[editingIndex].start;
+      const actualP = periods.find(p => p.start === actualStart && !p.deleted);
+      if (actualP) {
+        actualP.duration = currentDuration;
+        actualP.pending = true;
+      }
     } else {
-      // Check for duplicate start
-      if (periods.some(p => p.start === savedDate)) {
+      if (periods.some(p => p.start === savedDate && !p.deleted)) {
         closeModal();
         return;
       }
-      periods.push({ start: savedDate, duration: currentDuration });
+      periods.push({ start: savedDate, duration: currentDuration, pending: true });
     }
 
     save(periods);
     closeModal();
     refresh();
 
-    // ---- Anomaly check (only for newly added records) ----
+    if (navigator.onLine) {
+       syncFromCloud();
+    }
+
     if (isNew) {
       const sorted = getPeriods();
       const idx = sorted.findIndex(p => p.start === savedDate);
@@ -452,12 +525,23 @@
   }
 
   function deletePeriod(index) {
-    const periods = getPeriods();
-    if (index < 0 || index >= periods.length) return;
-    periods.splice(index, 1);
-    save(periods);
-    closeModal();
-    refresh();
+    if (partnerModeId) {
+      alert('伴侶模式下無法刪除紀錄');
+      return;
+    }
+    const sortedActive = getPeriods();
+    if (index < 0 || index >= sortedActive.length) return;
+    const targetStart = sortedActive[index].start;
+    
+    const periods = load();
+    const actualP = periods.find(p => p.start === targetStart && !p.deleted);
+    if (actualP) {
+      actualP.deleted = true;
+      save(periods);
+      closeModal();
+      refresh();
+      if (navigator.onLine) syncFromCloud();
+    }
   }
 
   // ---- Navigation ----
@@ -497,6 +581,61 @@
     const now = new Date();
     viewYear = now.getFullYear();
     viewMonth = now.getMonth();
+
+    // ---- Auth Listeners ----
+    supabase.auth.onAuthStateChange((event, session) => {
+      currentUser = session ? session.user : null;
+      if (currentUser) {
+        $('#authScreen').style.display = 'none';
+        $('#mainApp').style.display = 'block';
+        $('#headerActions').style.display = 'flex';
+        $('#currentUserDisplay').textContent = `我的 ID: ${currentUser.id}`;
+        partnerModeId = null;
+        btnPartnerMode.textContent = '伴侶模式: 關閉';
+        syncFromCloud();
+      } else {
+        $('#authScreen').style.display = 'block';
+        $('#mainApp').style.display = 'none';
+        $('#headerActions').style.display = 'none';
+        $('#currentUserDisplay').textContent = '';
+      }
+    });
+
+    btnLogin.addEventListener('click', async () => {
+      authError.style.display = 'none';
+      const { error } = await supabase.auth.signInWithPassword({ email: authEmail.value, password: authPassword.value });
+      if (error) { authError.textContent = '登入失敗: ' + error.message; authError.style.display = 'block'; }
+    });
+
+    btnRegister.addEventListener('click', async () => {
+      authError.style.display = 'none';
+      const { error } = await supabase.auth.signUp({ email: authEmail.value, password: authPassword.value });
+      if (error) { authError.textContent = '註冊失敗: ' + error.message; authError.style.display = 'block'; }
+      else { alert('註冊成功！若需要驗證信請至信箱收取，或直接登入。'); }
+    });
+
+    btnLogout.addEventListener('click', async () => {
+      await supabase.auth.signOut();
+    });
+
+    btnPartnerMode.addEventListener('click', () => {
+      if (partnerModeId) {
+         partnerModeId = null;
+         btnPartnerMode.textContent = '伴侶模式: 關閉';
+         refresh();
+      } else {
+         const pId = prompt('請輸入伴侶的 User ID (UUID格式):');
+         if (pId) {
+            partnerModeId = pId.trim();
+            btnPartnerMode.textContent = '伴侶模式: 開啟中';
+            syncFromCloud();
+         }
+      }
+    });
+
+    window.addEventListener('online', () => {
+       if (currentUser) syncFromCloud();
+    });
 
     // Event listeners
     prevMonthBtn.addEventListener('click', goToPrevMonth);
