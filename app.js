@@ -15,6 +15,7 @@
 
   // ---- Constants ----
   const STORAGE_KEY = 'cycleflow_periods';
+  const LOGS_STORAGE_KEY = 'cycleflow_daily_logs';
   const DEFAULT_CYCLE = 28;
   const DEFAULT_DURATION = 5;
   const OVULATION_OFFSET = 14; // days before next predicted period
@@ -39,6 +40,9 @@
   const durationValue = $('#durationValue');
   const durationMinus = $('#durationMinus');
   const durationPlus = $('#durationPlus');
+  const checkIsPeriodStart = $('#checkIsPeriodStart');
+  const durationWrap = $('#durationWrap');
+  const checkHadSex = $('#checkHadSex');
   const modalCancel = $('#modalCancel');
   const modalSave = $('#modalSave');
   const modalDelete = $('#modalDelete');
@@ -114,6 +118,29 @@
     localStorage.setItem(getStorageKey(), JSON.stringify(periods));
   }
 
+  function getLogsStorageKey() {
+    return currentUser ? `cycleflow_daily_logs_${currentUser.id}` : LOGS_STORAGE_KEY;
+  }
+
+  function loadLogs() {
+    try {
+      const raw = localStorage.getItem(getLogsStorageKey());
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }
+
+  function saveLogs(logs) {
+    if (partnerModeId) return;
+    localStorage.setItem(getLogsStorageKey(), JSON.stringify(logs));
+  }
+
+  function getLogs() {
+    if (partnerModeId) {
+      return window._partnerLogs || [];
+    }
+    return loadLogs().filter(l => !l.deleted);
+  }
+
   function getPeriods() {
     if (partnerModeId) {
       const p = window._partnerPeriods || [];
@@ -138,6 +165,19 @@
         }
       }
     }
+
+    const localLogs = loadLogs();
+    for (let l of localLogs) {
+      if (l.deleted) {
+        if (l.id) await supabase.from('daily_logs').delete().eq('id', l.id);
+      } else if (l.pending) {
+        if (l.id) {
+          await supabase.from('daily_logs').update({ had_sex: l.hadSex }).eq('id', l.id);
+        } else {
+          await supabase.from('daily_logs').upsert({ user_id: currentUser.id, date: l.date, had_sex: l.hadSex }, { onConflict: 'user_id,date' });
+        }
+      }
+    }
   }
 
   async function syncFromCloud() {
@@ -146,16 +186,33 @@
       await syncPending();
     }
     const targetUserId = partnerModeId || currentUser.id;
-    const { data, error } = await supabase.from('cycles').select('id, start_date, duration').eq('user_id', targetUserId);
-    if (!error) {
-      const mapped = data.map(c => ({ id: c.id, start: c.start_date, duration: c.duration }));
+    const { data: cyclesData, error: cyclesError } = await supabase.from('cycles').select('id, start_date, duration').eq('user_id', targetUserId);
+    const { data: logsData, error: logsError } = await supabase.from('daily_logs').select('id, date, had_sex').eq('user_id', targetUserId);
+    
+    if (cyclesError || logsError) {
+      const error = cyclesError || logsError;
+      console.error('Supabase fetch error:', error);
       if (partnerModeId) {
-        window._partnerPeriods = mapped;
-      } else {
-        save(mapped); // Overwrites local with truth, clearing pending/deleted flags safely
+        alert('無法讀取伴侶資料。\n這通常是因為 Supabase 資料庫的 RLS (安全政策) 擋住了讀取權限，或者 ID 輸入錯誤。\n錯誤詳情：' + error.message);
+        partnerModeId = null;
+        btnPartnerMode.textContent = '伴侶模式: 關閉';
+        refresh();
       }
-      refresh();
+      return;
     }
+
+    const mappedCycles = cyclesData.map(c => ({ id: c.id, start: c.start_date, duration: c.duration }));
+    const mappedLogs = logsData.map(l => ({ id: l.id, date: l.date, hadSex: l.had_sex }));
+    
+    if (partnerModeId) {
+      window._partnerPeriods = mappedCycles;
+      window._partnerLogs = mappedLogs;
+      btnPartnerMode.textContent = '伴侶模式: 開啟中 (已同步)';
+    } else {
+      save(mappedCycles); // Overwrites local with truth, clearing pending/deleted flags safely
+      saveLogs(mappedLogs);
+    }
+    refresh();
   }
 
   // ---- Prediction Engine ----
@@ -275,6 +332,8 @@
     const predictedSet = new Set(stats.predictedPeriodDays);
     const ovulationSet = new Set(stats.ovulationDays);
     const fertileSet = new Set(stats.fertileDays);
+    const logs = getLogs();
+    const sexDaySet = new Set(logs.filter(l => l.hadSex).map(l => l.date));
 
     // Month label
     const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
@@ -320,6 +379,10 @@
       // Predicted period
       else if (predictedSet.has(ds)) {
         cell.classList.add('day-cell--predicted');
+      }
+
+      if (sexDaySet.has(ds)) {
+        cell.classList.add('day-cell--sex');
       }
 
       cell.addEventListener('click', () => onDayClick(ds, periods));
@@ -436,11 +499,17 @@
     modalDate.textContent = formatDate(ds);
     durationValue.textContent = currentDuration;
 
+    const allLogs = getLogs();
+    const dailyLog = allLogs.find(l => l.date === ds);
+    checkHadSex.checked = dailyLog ? dailyLog.hadSex : false;
+
     if (index >= 0) {
-      modalTitle.textContent = '編輯經期紀錄';
+      checkIsPeriodStart.checked = true;
+      durationWrap.style.display = 'block';
       modalDelete.style.display = '';
     } else {
-      modalTitle.textContent = '標記經期開始';
+      checkIsPeriodStart.checked = false;
+      durationWrap.style.display = 'none';
       modalDelete.style.display = 'none';
     }
 
@@ -482,27 +551,53 @@
     }
     if (!selectedDate) return;
     
-    const periods = load(); // Load raw to modify true state
+    // Handle period logic
+    const periods = load();
     const isNew = editingIndex < 0;
     const savedDate = selectedDate;
+    const isPeriodChecked = checkIsPeriodStart.checked;
 
-    if (editingIndex >= 0) {
+    if (isPeriodChecked) {
+      if (editingIndex >= 0) {
+        const sortedActive = getPeriods();
+        const actualStart = sortedActive[editingIndex].start;
+        const actualP = periods.find(p => p.start === actualStart && !p.deleted);
+        if (actualP) {
+          actualP.duration = currentDuration;
+          actualP.pending = true;
+        }
+      } else {
+        if (!periods.some(p => p.start === savedDate && !p.deleted)) {
+          periods.push({ start: savedDate, duration: currentDuration, pending: true });
+        }
+      }
+      save(periods);
+    } else if (editingIndex >= 0) {
+      // Unchecked an existing period -> Delete instead
       const sortedActive = getPeriods();
       const actualStart = sortedActive[editingIndex].start;
       const actualP = periods.find(p => p.start === actualStart && !p.deleted);
       if (actualP) {
-        actualP.duration = currentDuration;
-        actualP.pending = true;
+        actualP.deleted = true;
+        save(periods);
       }
-    } else {
-      if (periods.some(p => p.start === savedDate && !p.deleted)) {
-        closeModal();
-        return;
-      }
-      periods.push({ start: savedDate, duration: currentDuration, pending: true });
     }
 
-    save(periods);
+    // Handle logs logic
+    const logs = loadLogs();
+    const logVal = checkHadSex.checked;
+    let existingLogIndex = logs.findIndex(l => l.date === savedDate && !l.deleted);
+    
+    if (existingLogIndex >= 0) {
+      if (logs[existingLogIndex].hadSex !== logVal) {
+        logs[existingLogIndex].hadSex = logVal;
+        logs[existingLogIndex].pending = true;
+      }
+    } else if (logVal) { // Only add if true
+      logs.push({ date: savedDate, hadSex: logVal, pending: true });
+    }
+    saveLogs(logs);
+
     closeModal();
     refresh();
 
@@ -510,7 +605,7 @@
        syncFromCloud();
     }
 
-    if (isNew) {
+    if (isPeriodChecked && isNew) {
       const sorted = getPeriods();
       const idx = sorted.findIndex(p => p.start === savedDate);
       if (idx > 0) {
@@ -643,6 +738,16 @@
     modalCancel.addEventListener('click', closeModal);
     modalSave.addEventListener('click', savePeriod);
     modalDelete.addEventListener('click', () => deletePeriod(editingIndex));
+    
+    checkIsPeriodStart.addEventListener('change', () => {
+      durationWrap.style.display = checkIsPeriodStart.checked ? 'block' : 'none';
+      if (!checkIsPeriodStart.checked) {
+        modalDelete.style.display = 'none';
+      } else if (editingIndex >= 0) {
+        modalDelete.style.display = '';
+      }
+    });
+
     alertDismiss.addEventListener('click', closeAlert);
     alertOverlay.addEventListener('click', (e) => {
       if (e.target === alertOverlay) closeAlert();

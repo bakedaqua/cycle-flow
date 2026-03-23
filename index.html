@@ -109,6 +109,7 @@
       <div class="legend-item"><div class="legend-dot legend-dot--predicted"></div>預測經期</div>
       <div class="legend-item"><div class="legend-dot legend-dot--ovulation"></div>排卵日</div>
       <div class="legend-item"><div class="legend-dot legend-dot--fertile"></div>易孕期</div>
+      <div class="legend-item"><div class="legend-dot legend-dot--sex"></div>性行為</div>
     </div>
   </section>
 
@@ -135,17 +136,35 @@
 <!-- Duration Modal -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
-    <div class="modal__title" id="modalTitle">標記經期開始</div>
+    <div class="modal__title" id="modalTitle">編輯每日紀錄</div>
     <div class="modal__date" id="modalDate"></div>
-    <div class="modal__label">持續天數</div>
-    <div class="duration-selector">
-      <button class="duration-selector__btn" id="durationMinus">−</button>
-      <div class="duration-selector__value" id="durationValue">5</div>
-      <button class="duration-selector__btn" id="durationPlus">+</button>
+    
+    <div class="modal__section" style="margin-bottom: 20px; text-align: left; background: var(--clr-primary-ultra-light); padding: 12px; border-radius: var(--radius-sm);">
+      <label style="display:flex; align-items:center; cursor:pointer; font-weight:600; color:var(--clr-text);">
+        <input type="checkbox" id="checkHadSex" style="margin-right:10px; width:18px; height:18px; accent-color:var(--clr-period-red);">
+        💕 有性行為
+      </label>
     </div>
-    <div class="modal-actions">
+
+    <div class="modal__section" style="text-align: left; background: var(--clr-bg); padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--clr-border);">
+      <label style="display:flex; align-items:center; cursor:pointer; font-weight:600; color:var(--clr-text); margin-bottom: 10px;">
+        <input type="checkbox" id="checkIsPeriodStart" style="margin-right:10px; width:18px; height:18px; accent-color:var(--clr-period-red);">
+        🩸 這是經期第一天
+      </label>
+      
+      <div id="durationWrap" style="display:none; padding-left: 28px;">
+        <div class="modal__label" style="text-align: left; margin-bottom: 8px;">持續天數</div>
+        <div class="duration-selector" style="justify-content: flex-start; margin-bottom: 0;">
+          <button class="duration-selector__btn" id="durationMinus">−</button>
+          <div class="duration-selector__value" id="durationValue">5</div>
+          <button class="duration-selector__btn" id="durationPlus">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top: 24px;">
       <button class="btn btn--secondary" id="modalCancel">取消</button>
-      <button class="btn btn--danger" id="modalDelete" style="display:none">刪除</button>
+      <button class="btn btn--danger" id="modalDelete" style="display:none">刪除經期</button>
       <button class="btn btn--primary" id="modalSave">確認</button>
     </div>
   </div>

@@ -236,6 +236,16 @@ body {
   box-shadow: inset 0 0 0 2px var(--clr-primary);
 }
 
+.day-cell--sex::after {
+  content: '💕';
+  position: absolute;
+  bottom: 0;
+  right: 2px;
+  font-size: 0.75rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(255,255,255,0.7));
+}
+
 /* Period day — solid red dot */
 .day-cell--period {
   background: var(--clr-period-red);
@@ -304,6 +314,18 @@ body {
 }
 .legend-dot--ovulation { background: var(--clr-ovulation); }
 .legend-dot--fertile { background: var(--clr-fertile); }
+.legend-dot--sex {
+  position: relative;
+  background: transparent;
+}
+.legend-dot--sex::after {
+  content: '💕';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.8rem;
+}
 
 /* ---------- History List ---------- */
 .history-list { list-style: none; }
